@@ -12,7 +12,7 @@ nest_asyncio.apply()
 
 
 TELEGRAM_TOKEN = "7487815969:AAFOM9A9ObYv2pWaPReeMVqrLMkL7pvZA4w" 
-OPENROUTER_API_KEY = "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"  
+OPENROUTER_API_KEY = "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"  
 CHANNEL_USERNAME = "@SYNTAXA1" 
 
 
@@ -90,7 +90,7 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
 
 
 def get_ai_response(user_message: str) -> str:
-    """Отправляет запрос к OpenRouter API."""
+    """Отправляет запрос к OpenRouter API и возвращает исправленный текст с пояснениями."""
     try:
         response = requests.post(
             url="https://openrouter.ai/api/v1/chat/completions",
@@ -100,14 +100,31 @@ def get_ai_response(user_message: str) -> str:
             },
             data=json.dumps({
                 "model": "deepseek/deepseek-r1",
-                "messages": [{"role": "user", "content": user_message}]
+                "messages": [
+                    {"role": "system", "content": "Ты помощник, который исправляет ошибки в русском тексте. "
+                                                  "Отвечай строго в формате: \n"
+                                                  "Исправленный текст: <исправленный вариант> \n\n"
+                                                  "Пояснения: \n1. <объяснение первой ошибки>\n2. <объяснение второй ошибки>"},
+                    {"role": "user", "content": f"Исправь этот текст: {user_message}"}
+                ]
             })
         )
+
         response_json = response.json()
-        return response_json["choices"][0]["message"]["content"].strip()
+
+        if "choices" in response_json and len(response_json["choices"]) > 0:
+            return response_json["choices"][0]["message"]["content"].strip()
+        else:
+            return "⚠ Ошибка: API не вернул корректный ответ."
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ошибка сети при вызове API: {e}")
+        return "⚠ Ошибка сети при обработке запроса."
+
     except Exception as e:
-        logger.error(f"Ошибка при вызове OpenRouter API: {e}")
-        return "Произошла ошибка при обработке запроса."
+        logger.error(f"Неизвестная ошибка API: {e}")
+        return "⚠ Произошла ошибка. Попробуйте позже."
+
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
